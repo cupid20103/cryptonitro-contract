@@ -3,13 +3,12 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Cryptonitro is ERC721URIStorage, Ownable {
-    using SafeMath for uint;
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIds;
 
@@ -19,6 +18,11 @@ contract Cryptonitro is ERC721URIStorage, Ownable {
     string public baseExtension = ".json";
     bool public paused = false;
 
+    uint public commonCost;
+    uint public rareCost;
+    uint public epicCost;
+    uint public legendaryCost;
+
     mapping (string => uint) public ownContainer;
 
     modifier onlyWhenNotPaused {
@@ -26,7 +30,7 @@ contract Cryptonitro is ERC721URIStorage, Ownable {
       _;
     }
 
-    constructor(string memory _name, string memory _symbol, string memory _initBaseURI) ERC721(_name, _symbol) { 
+    constructor(string memory _name, string memory _symbol, string memory _initBaseURI) ERC721(_name, _symbol) {
       baseURI = _initBaseURI;
       nitroxToken = IERC20(0x398f3E66E3bE2eC0B9a502cE87008436D3981e4A);
     }
@@ -49,7 +53,7 @@ contract Cryptonitro is ERC721URIStorage, Ownable {
 
     function tokenURI (uint tokenId) public view virtual override returns(string memory){
       require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
-      string memory currentBaseURI = _baseURI(); 
+      string memory currentBaseURI = _baseURI();
       return bytes(currentBaseURI).length > 0
             ? string(
                 abi.encodePacked(
@@ -61,22 +65,32 @@ contract Cryptonitro is ERC721URIStorage, Ownable {
             : "";
     }
 
-    function mintItem(uint _cost, string memory _container) public onlyWhenNotPaused {
+    function mintItem(string memory _container) public onlyWhenNotPaused {
+      uint cost;
       uint tokenIdByContainer;
-      if(keccak256(abi.encodePacked(_container)) == keccak256(abi.encodePacked("Common"))) {
-        require(ownContainer[_container] + 1 <= 50000, "Maxium is 50000");
+      bytes32 container = keccak256(abi.encodePacked(_container));
+
+      if(container == keccak256(abi.encodePacked("Common"))) {
+        require(ownContainer[_container] + 1 <= 50000, "Maximum is 50000");
+        cost = commonCost;
         tokenIdByContainer = 1 + ownContainer[_container];
-      } else if (keccak256(abi.encodePacked(_container)) == keccak256(abi.encodePacked("Rare"))) {
-        require(ownContainer[_container] + 1 <= 30000, "Maxium is 30000");
+      } else if (container == keccak256(abi.encodePacked("Rare"))) {
+        require(ownContainer[_container] + 1 <= 30000, "Maximum is 30000");
+        cost = rareCost;
         tokenIdByContainer = 50001 + ownContainer[_container];
-      } else if (keccak256(abi.encodePacked(_container)) == keccak256(abi.encodePacked("Epic"))) {
-        require(ownContainer[_container] + 1 <= 15000, "Maxium is 15000");
+      } else if (container == keccak256(abi.encodePacked("Epic"))) {
+        require(ownContainer[_container] + 1 <= 15000, "Maximum is 15000");
+        cost = epicCost;
         tokenIdByContainer = 80001 + ownContainer[_container];
-      } else if (keccak256(abi.encodePacked(_container)) == keccak256(abi.encodePacked("Legendary"))) {
-        require(ownContainer[_container] + 1 <= 5000, "Maxium is 5000");
+      } else if (container == keccak256(abi.encodePacked("Legendary"))) {
+        require(ownContainer[_container] + 1 <= 5000, "Maximum is 5000");
+        cost = legendaryCost;
         tokenIdByContainer = 95001 + ownContainer[_container];
+      } else {
+        revert("Invalid container");
       }
-      nitroxToken.transferFrom(msg.sender, address(this), _cost);
+
+      require(nitroxToken.transferFrom(msg.sender, address(this), cost), "Token transfer failed");
       _tokenIds.increment();
       ownContainer[_container]++;
       _safeMint(msg.sender, tokenIdByContainer);
@@ -112,8 +126,7 @@ contract Cryptonitro is ERC721URIStorage, Ownable {
 
     function withdraw() external onlyOwner {
       address _owner = owner();
-      uint256 _amount = nitroxToken.balanceOf(address(this));
-      nitroxToken.approve(_owner, _amount);
-      nitroxToken.transfer(_owner, _amount);
+      uint _amount = nitroxToken.balanceOf(address(this));
+      require(nitroxToken.transfer(_owner, _amount), "Token transfer failed");
     }
 }
